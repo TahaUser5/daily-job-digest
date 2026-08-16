@@ -1,0 +1,10 @@
+Replace this with a short summary of your background — 5-10 lines is enough.
+The scorer reads this to judge fit, so be specific about what you actually
+want matched against (e.g. full-stack + AI angle, Dubai/remote, junior level).
+
+Example shape:
+- MPhil AI student, BS Software Engineering
+- Full-stack: FastAPI, Next.js, PostgreSQL, Docker
+- AI/ML: RAG pipelines, LangChain, Groq, explainable AI
+- Shipped: AI healthcare platform, B2B vendor marketplace with AI risk analysis
+- Looking for: junior/entry full-stack or AI engineering roles, Dubai or remote
