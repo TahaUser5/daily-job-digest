@@ -38,8 +38,15 @@ QUREOS_SEARCHES = [
     ("full-stack-developer-jobs-in-dubai", "Dubai", "Full Stack Developer"),
 ]
 
-# RemoteOK: public JSON API, filtered by tag
+# RemoteOK: public JSON API, filtered by tag AND by title keyword.
+# Tag data on RemoteOK isn't reliable enough alone — it let irrelevant jobs
+# (retail, hospitality) through in testing, so title keywords act as a
+# second, stricter check.
 REMOTEOK_TAGS = ["ai", "python", "fullstack"]
+REMOTEOK_TITLE_KEYWORDS = [
+    "engineer", "developer", "software", "full stack", "fullstack",
+    "backend", "frontend", "ml", "ai", "machine learning", "data",
+]
 
 MIN_SCORE_TO_INCLUDE = 6  # out of 10 — tune this once you see real output
 
@@ -52,7 +59,11 @@ def get_qureos_build_id() -> str:
     changes whenever they redeploy, so we pull it fresh every run instead
     of hardcoding it — otherwise this silently breaks after their next
     deploy and you'd never know."""
-    resp = requests.get("https://app.qureos.com/jobs", timeout=20)
+    resp = requests.get(
+        "https://app.qureos.com/jobs",
+        headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"},
+        timeout=20,
+    )
     resp.raise_for_status()
     match = re.search(r"/_next/data/([^/]+)/", resp.text)
     if not match:
@@ -105,7 +116,10 @@ def fetch_remoteok_jobs() -> list[dict]:
     # First item is metadata, not a job — skip it
     for job in data[1:]:
         tags = [t.lower() for t in job.get("tags", [])]
-        if not any(t in tags for t in REMOTEOK_TAGS):
+        title_lower = job.get("position", "").lower()
+        tag_match = any(t in tags for t in REMOTEOK_TAGS)
+        title_match = any(kw in title_lower for kw in REMOTEOK_TITLE_KEYWORDS)
+        if not (tag_match and title_match):
             continue
         jobs.append(
             {
@@ -172,7 +186,7 @@ REASON: <one sentence>"""
         "https://api.groq.com/openai/v1/chat/completions",
         headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
         json={
-            "model": "llama-3.3-70b-versatile",
+            "model": "openai/gpt-oss-120b",
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.2,
         },
