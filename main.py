@@ -48,6 +48,17 @@ REMOTEOK_TITLE_KEYWORDS = [
     "backend", "frontend", "ml", "ai", "machine learning", "data",
 ]
 
+# Greenhouse: free public per-company API. Only companies confirmed to
+# still be on Greenhouse are listed here — Snowflake moved off it (their
+# board 404s now), Datadog's status is unconfirmed, and Google/Meta run
+# custom career infra, not a third-party ATS, so none of those are scrapable
+# this way.
+GREENHOUSE_COMPANIES = ["stripe", "hubspotjobs", "databricks"]
+
+# Arbeitnow: free public API, Europe/remote-focused — useful for the
+# Ireland/CSEP side specifically since it supports a visa-sponsorship filter.
+ARBEITNOW_TITLE_KEYWORDS = REMOTEOK_TITLE_KEYWORDS
+
 MIN_SCORE_TO_INCLUDE = 6  # out of 10 — tune this once you see real output
 
 
@@ -130,6 +141,61 @@ def fetch_remoteok_jobs() -> list[dict]:
                 "link": job.get("url", ""),
                 "description": strip_html(job.get("description", "")),
                 "source": "RemoteOK",
+            }
+        )
+    return jobs
+
+
+# ---------------------------------------------------------------------------
+# Greenhouse (per confirmed company)
+# ---------------------------------------------------------------------------
+def fetch_greenhouse_jobs() -> list[dict]:
+    jobs = []
+    for company in GREENHOUSE_COMPANIES:
+        url = f"https://boards-api.greenhouse.io/v1/boards/{company}/jobs?content=true"
+        resp = requests.get(url, timeout=20)
+        resp.raise_for_status()
+        data = resp.json()
+        for job in data.get("jobs", []):
+            jobs.append(
+                {
+                    "id": f"greenhouse:{company}:{job['id']}",
+                    "title": job.get("title", "Unknown"),
+                    "company": company,
+                    "location": job.get("location", {}).get("name", "Unknown"),
+                    "link": job.get("absolute_url", ""),
+                    "description": strip_html(job.get("content", "")),
+                    "source": f"Greenhouse ({company})",
+                }
+            )
+    return jobs
+
+
+# ---------------------------------------------------------------------------
+# Arbeitnow — visa-sponsorship filter is the reason this one's worth having
+# ---------------------------------------------------------------------------
+def fetch_arbeitnow_jobs() -> list[dict]:
+    resp = requests.get(
+        "https://www.arbeitnow.com/api/job-board-api",
+        params={"visa_sponsorship": "true"},
+        timeout=20,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    jobs = []
+    for job in data.get("data", []):
+        title_lower = job.get("title", "").lower()
+        if not any(kw in title_lower for kw in ARBEITNOW_TITLE_KEYWORDS):
+            continue
+        jobs.append(
+            {
+                "id": f"arbeitnow:{job.get('slug')}",
+                "title": job.get("title", "Unknown"),
+                "company": job.get("company_name", "Unknown"),
+                "location": job.get("location", "Unknown"),
+                "link": job.get("url", ""),
+                "description": strip_html(job.get("description", "")),
+                "source": "Arbeitnow (visa sponsorship)",
             }
         )
     return jobs
@@ -249,6 +315,16 @@ def main() -> None:
         all_jobs += fetch_remoteok_jobs()
     except Exception as e:
         print(f"RemoteOK fetch failed (continuing anyway): {e}", file=sys.stderr)
+
+    try:
+        all_jobs += fetch_greenhouse_jobs()
+    except Exception as e:
+        print(f"Greenhouse fetch failed (continuing anyway): {e}", file=sys.stderr)
+
+    try:
+        all_jobs += fetch_arbeitnow_jobs()
+    except Exception as e:
+        print(f"Arbeitnow fetch failed (continuing anyway): {e}", file=sys.stderr)
 
     new_jobs = [j for j in all_jobs if j["id"] not in seen_ids]
     print(f"Fetched {len(all_jobs)} total, {len(new_jobs)} new.")
