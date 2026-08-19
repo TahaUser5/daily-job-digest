@@ -186,7 +186,7 @@ REASON: <one sentence>"""
         "https://api.groq.com/openai/v1/chat/completions",
         headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
         json={
-            "model": "openai/gpt-oss-120b",
+            "model": "llama-3.1-8b-instant",
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.2,
         },
